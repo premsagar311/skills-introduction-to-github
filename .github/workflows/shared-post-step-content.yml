@@ -1,0 +1,119 @@
+name: Shared - Post step content
+
+# Reusable workflow with the comment/step-progression logic shared by every step workflow:
+# - posts an optional intro comment (step finished / lesson review)
+# - posts the step content file
+# - optionally posts the "watching for progress" comment
+# - optionally disables the calling workflow and enables the next one
+
+on:
+  workflow_call:
+    inputs:
+      issue-number:
+        description: "Exercise issue to comment on."
+        required: true
+        type: string
+      step-file:
+        description: "Repository file holding the content to post."
+        required: true
+        type: string
+      intro-template-file:
+        description: "Response template posted before the step content. Empty to skip."
+        required: false
+        type: string
+        default: "exercise-toolkit/markdown-templates/step-feedback/step-finished-prepare-next-step.md"
+      next-step-number:
+        description: "Value for the next_step_number template variable. Empty to omit."
+        required: false
+        type: string
+        default: ""
+      post-watching-for-progress:
+        description: "Post the 'watching for progress' comment after the step content."
+        required: false
+        type: boolean
+        default: true
+      disable-current-workflow:
+        description: "Disable the calling workflow once the content is posted."
+        required: false
+        type: boolean
+        default: true
+      next-workflow-name:
+        description: "Workflow to enable once the content is posted. Empty to skip."
+        required: false
+        type: string
+        default: ""
+      current-workflow-name:
+        description: "Name of the calling workflow, used when disabling it."
+        required: false
+        type: string
+        default: ""
+      checkout-ref:
+        description: "Ref to check out for the step content file. Empty for the default ref."
+        required: false
+        type: string
+        default: ""
+      toolkit-ref:
+        description: "skills/exercise-toolkit ref providing the response templates."
+        required: false
+        type: string
+        default: "v0.7.0"
+
+jobs:
+  post_step_content:
+    name: Post step content
+    runs-on: ubuntu-latest
+    env:
+      ISSUE_REPOSITORY: ${{ github.repository }}
+      ISSUE_NUMBER: ${{ inputs.issue-number }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.checkout-ref }}
+
+      - name: Get response templates
+        uses: actions/checkout@v4
+        with:
+          repository: skills/exercise-toolkit
+          path: exercise-toolkit
+          ref: ${{ inputs.toolkit-ref }}
+
+      - name: Create comment - intro
+        if: inputs.intro-template-file != ''
+        uses: GrantBirki/comment@v2.1.1
+        with:
+          repository: ${{ env.ISSUE_REPOSITORY }}
+          issue-number: ${{ env.ISSUE_NUMBER }}
+          file: ${{ inputs.intro-template-file }}
+          vars: "${{ inputs.next-step-number != '' && format('next_step_number: {0}', inputs.next-step-number) || '' }}"
+
+      - name: Create comment - add step content
+        uses: GrantBirki/comment@v2.1.1
+        with:
+          repository: ${{ env.ISSUE_REPOSITORY }}
+          issue-number: ${{ env.ISSUE_NUMBER }}
+          file: ${{ inputs.step-file }}
+
+      - name: Create comment - watching for progress
+        if: inputs.post-watching-for-progress
+        uses: GrantBirki/comment@v2.1.1
+        with:
+          repository: ${{ env.ISSUE_REPOSITORY }}
+          issue-number: ${{ env.ISSUE_NUMBER }}
+          file: exercise-toolkit/markdown-templates/step-feedback/watching-for-progress.md
+
+      - name: Disable current workflow and enable next one
+        if: (inputs.disable-current-workflow && inputs.current-workflow-name != '') || inputs.next-workflow-name != ''
+        run: |
+          if [ "$DISABLE_CURRENT" = "true" ] && [ -n "$CURRENT_WORKFLOW" ]; then
+            gh workflow disable "$CURRENT_WORKFLOW"
+          fi
+          if [ -n "$NEXT_WORKFLOW" ]; then
+            gh workflow enable "$NEXT_WORKFLOW"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DISABLE_CURRENT: ${{ inputs.disable-current-workflow }}
+          CURRENT_WORKFLOW: ${{ inputs.current-workflow-name }}
+          NEXT_WORKFLOW: ${{ inputs.next-workflow-name }}
