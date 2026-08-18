@@ -10,6 +10,7 @@ Keeps the OpenAI key on a server instead of on the phone or PC. Point the app's
 from __future__ import annotations
 
 import os
+import re
 from typing import Literal
 
 import httpx
@@ -18,6 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 OPENAI_URL = "https://api.openai.com/v1/chat/completions"
+SECRET_PATTERN = re.compile(r"sk-[A-Za-z0-9_*-]{6,}")
 ALLOWED_ORIGINS = os.environ.get("NEXUS_ALLOWED_ORIGINS", "*").split(",")
 
 app = FastAPI(title="Nexus backend", version="1.0.0")
@@ -47,7 +49,7 @@ class ChatResponse(BaseModel):
 
 def _redact(text: str, api_key: str) -> str:
     """Upstream errors quote the offending key back at us; never pass it to a client."""
-    return text.replace(api_key, "***")
+    return SECRET_PATTERN.sub("sk-***", text.replace(api_key, "***"))
 
 
 @app.get("/api/health")
