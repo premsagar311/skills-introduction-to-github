@@ -21,20 +21,28 @@ env:
 
 jobs:
   find_exercise:
+    if: |
+      !github.event.repository.is_template &&
+      github.event.pull_request.merged == true
     name: Find Exercise Issue
-    uses: skills/exercise-toolkit/.github/workflows/find-exercise-issue.yml@v0.5.0
+    uses: skills/exercise-toolkit/.github/workflows/find-exercise-issue.yml@v0.7.0
 
   post_review_content:
     name: Post review content
     needs: [find_exercise]
     runs-on: ubuntu-latest
-    if: |
-      !github.event.repository.is_template
     env:
       ISSUE_REPOSITORY: ${{ github.repository }}
       ISSUE_NUMBER: ${{ needs.find_exercise.outputs.issue-number }}
 
     steps:
+      - name: Verify exercise issue was found
+        run: |
+          if [ -z "$ISSUE_NUMBER" ]; then
+            echo "::error::Could not find the exercise issue. Cannot post review content."
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -60,7 +68,11 @@ jobs:
           file: ${{ env.REVIEW_FILE }}
 
       - name: Disable current workflow
-        run: gh workflow disable "${{github.workflow}}"
+        run: |
+          if ! gh workflow disable "${{github.workflow}}"; then
+            echo "::error::Failed to disable workflow '${{github.workflow}}'."
+            exit 1
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

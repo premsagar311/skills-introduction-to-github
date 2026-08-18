@@ -32,6 +32,13 @@ jobs:
       ISSUE_NUMBER: ${{ needs.find_exercise.outputs.issue-number }}
 
     steps:
+      - name: Verify exercise issue was found
+        run: |
+          if [ -z "$ISSUE_NUMBER" ]; then
+            echo "::error::Could not find the exercise issue. Cannot post step content."
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -67,7 +74,13 @@ jobs:
 
       - name: Disable current workflow and enable next one
         run: |
-          gh workflow disable "${{github.workflow}}"
-          gh workflow enable "Step 2"
+          if ! gh workflow disable "${{github.workflow}}"; then
+            echo "::error::Failed to disable workflow '${{github.workflow}}'."
+            exit 1
+          fi
+          if ! gh workflow enable "Step 2"; then
+            echo "::error::Failed to enable workflow 'Step 2'. The learner will not receive feedback for the next step."
+            exit 1
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
