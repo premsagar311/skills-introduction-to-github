@@ -40,6 +40,13 @@ jobs:
       ISSUE_NUMBER: ${{ needs.find_exercise.outputs.issue-number }}
 
     steps:
+      - name: Verify exercise issue was found
+        run: |
+          if [ -z "$ISSUE_NUMBER" ]; then
+            echo "::error::Could not find the exercise issue. Cannot report step results."
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -57,6 +64,15 @@ jobs:
           repository: ${{ env.ISSUE_REPOSITORY }}
           issue-number: ${{ env.ISSUE_NUMBER }}
           direction: last
+
+      - name: Verify a comment was found
+        env:
+          COMMENT_ID: ${{ steps.find-last-comment.outputs.comment-id }}
+        run: |
+          if [ -z "$COMMENT_ID" ]; then
+            echo "::error::No comment found on issue #$ISSUE_NUMBER. Step results cannot be reported."
+            exit 1
+          fi
 
       - name: Update comment - checking work
         uses: GrantBirki/comment@v2.1.1
@@ -83,9 +99,9 @@ jobs:
         continue-on-error: true
         run: |
           if [ -n "$PR_BODY" ]; then
-            echo "STEP_MESSAGE=Pull request description" >> $GITHUB_OUTPUT
+            echo "STEP_MESSAGE=Pull request description" >> "$GITHUB_OUTPUT"
           else
-            echo "STEP_MESSAGE=Pull request description is empty" >> $GITHUB_OUTPUT
+            echo "STEP_MESSAGE=Pull request description is empty" >> "$GITHUB_OUTPUT"
             exit 1
           fi
         env:
@@ -108,8 +124,12 @@ jobs:
                 passed: ${{ steps.check-pr-description.outcome == 'success' }}
 
       - name: Fail job if not all checks passed
-        if: contains(steps.*.outcome, 'failure')
-        run: exit 1
+        if: |
+          steps.check-pr-title.outcome != 'success' ||
+          steps.check-pr-description.outcome != 'success'
+        run: |
+          echo "::error::Pull request title check: ${{ steps.check-pr-title.outcome }}, description check: ${{ steps.check-pr-description.outcome }}"
+          exit 1
 
   post_next_step_content:
     name: Post next step content
@@ -120,6 +140,13 @@ jobs:
       ISSUE_NUMBER: ${{ needs.find_exercise.outputs.issue-number }}
 
     steps:
+      - name: Verify exercise issue was found
+        run: |
+          if [ -z "$ISSUE_NUMBER" ]; then
+            echo "::error::Could not find the exercise issue. Cannot post step content."
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -155,7 +182,13 @@ jobs:
 
       - name: Disable current workflow and enable next one
         run: |
-          gh workflow disable "${{github.workflow}}"
-          gh workflow enable "Step 4"
+          if ! gh workflow disable "${{github.workflow}}"; then
+            echo "::error::Failed to disable workflow '${{github.workflow}}'."
+            exit 1
+          fi
+          if ! gh workflow enable "Step 4"; then
+            echo "::error::Failed to enable workflow 'Step 4'. The learner will not receive feedback for the next step."
+            exit 1
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
