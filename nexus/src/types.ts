@@ -21,7 +21,16 @@ export interface Reminder {
   fired: boolean;
 }
 
+/** Gemini is offered because its free tier needs no billing details. */
+export type Provider = "gemini" | "openai";
+
+export const PROVIDER_MODELS: Record<Provider, string[]> = {
+  gemini: ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash"],
+  openai: ["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-3.5-turbo"],
+};
+
 export interface Settings {
+  provider: Provider;
   apiKey: string;
   model: string;
   backendUrl: string;
@@ -38,8 +47,9 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
+  provider: "gemini",
   apiKey: "",
-  model: "gpt-4o-mini",
+  model: PROVIDER_MODELS.gemini[0],
   backendUrl: "",
   wakeWord: "nexus",
   wakeWordEnabled: false,

@@ -1,5 +1,11 @@
 import { Message, Settings } from "../types";
 
+/** Gemini exposes an OpenAI-compatible chat endpoint, so one request shape serves both. */
+const CHAT_URLS: Record<Settings["provider"], string> = {
+  openai: "https://api.openai.com/v1/chat/completions",
+  gemini: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+};
+
 interface ChatTurn {
   role: "system" | "user" | "assistant";
   content: string;
@@ -23,7 +29,7 @@ export function hasBrain(settings: Settings): boolean {
 
 /**
  * Asks the configured LLM. Prefers a backend proxy when one is set (keeps the key
- * off the device); otherwise calls the OpenAI API directly from the browser.
+ * off the device); otherwise calls the provider directly from the browser.
  */
 export async function ask(
   utterance: string,
@@ -34,7 +40,7 @@ export async function ask(
   const messages = buildTurns(history, utterance, settings);
   const backend = settings.backendUrl.trim().replace(/\/$/, "");
 
-  const endpoint = backend ? `${backend}/api/chat` : "https://api.openai.com/v1/chat/completions";
+  const endpoint = backend ? `${backend}/api/chat` : CHAT_URLS[settings.provider];
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (!backend) headers.Authorization = `Bearer ${settings.apiKey.trim()}`;
 
@@ -43,6 +49,7 @@ export async function ask(
     headers,
     signal,
     body: JSON.stringify({
+      provider: settings.provider,
       model: settings.model,
       messages,
       temperature: 0.6,
@@ -63,7 +70,10 @@ export async function ask(
 
 /** Upstream errors quote the offending credential back at us; never surface it. */
 function redact(text: string): string {
-  return text.replace(/sk-[A-Za-z0-9_-]{8,}/g, "sk-***").replace(/Bearer\s+\S+/g, "Bearer ***");
+  return text
+    .replace(/sk-[A-Za-z0-9_-]{8,}/g, "sk-***")
+    .replace(/AIza[A-Za-z0-9_-]{10,}/g, "AIza***")
+    .replace(/Bearer\s+\S+/g, "Bearer ***");
 }
 
 function readReply(data: unknown): string {

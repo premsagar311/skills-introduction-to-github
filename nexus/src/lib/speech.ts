@@ -1,7 +1,12 @@
 /**
  * Thin wrapper over the Web Speech API recognition engine.
  * Chrome/Edge on Windows and Chrome on Android expose it as webkitSpeechRecognition.
+ * Inside the Android app shell there is no Web Speech API, so the native recogniser
+ * is driven through the Capacitor plugin behind the same callback contract.
  */
+
+import { SpeechRecognition } from "@capacitor-community/speech-recognition";
+import { isNativeApp } from "./native";
 
 interface SpeechRecognitionAlternative {
   transcript: string;
@@ -47,7 +52,7 @@ function getCtor(): SpeechRecognitionCtor | null {
 }
 
 export function isRecognitionSupported(): boolean {
-  return getCtor() !== null;
+  return isNativeApp() || getCtor() !== null;
 }
 
 export interface ListenerCallbacks {
@@ -61,6 +66,8 @@ export class VoiceListener {
   private recognition: SpeechRecognitionLike | null = null;
   private wantListening = false;
   private restartTimer: number | null = null;
+  private nativeBound = false;
+  private lastNativePartial = "";
 
   constructor(private callbacks: ListenerCallbacks) {}
 
@@ -69,6 +76,11 @@ export class VoiceListener {
   }
 
   start(language: string, continuous: boolean): void {
+    if (isNativeApp()) {
+      this.wantListening = true;
+      void this.startNative(language);
+      return;
+    }
     const Ctor = getCtor();
     if (!Ctor) {
       this.callbacks.onError("not-supported");
@@ -135,8 +147,73 @@ export class VoiceListener {
     }
   }
 
+  /**
+   * The plugin emits partials while listening and a "stopped" state after silence;
+   * the last partial is the final transcript, and a new session keeps the mic hot.
+   */
+  private async startNative(language: string): Promise<void> {
+    try {
+      const permission = await SpeechRecognition.requestPermissions();
+      if (permission.speechRecognition !== "granted") {
+        this.wantListening = false;
+        this.callbacks.onError("not-allowed");
+        return;
+      }
+
+      if (!this.nativeBound) {
+        this.nativeBound = true;
+        await SpeechRecognition.addListener("partialResults", ({ matches }) => {
+          const text = matches[0]?.trim() ?? "";
+          if (!text) return;
+          this.lastNativePartial = text;
+          this.callbacks.onPartial(text);
+        });
+        await SpeechRecognition.addListener("listeningState", ({ status }) => {
+          if (status === "started") {
+            this.callbacks.onStateChange(true);
+            return;
+          }
+          this.callbacks.onStateChange(false);
+          const finalText = this.lastNativePartial;
+          this.lastNativePartial = "";
+          if (finalText) this.callbacks.onFinal(finalText);
+          if (this.wantListening) {
+            this.restartTimer = window.setTimeout(() => {
+              if (this.wantListening) void this.listenNative(language);
+            }, 400);
+          }
+        });
+      }
+
+      await this.listenNative(language);
+    } catch (caught) {
+      this.wantListening = false;
+      this.callbacks.onStateChange(false);
+      this.callbacks.onError(caught instanceof Error ? caught.message : "recognition-failed");
+    }
+  }
+
+  private async listenNative(language: string): Promise<void> {
+    await SpeechRecognition.start({
+      language,
+      maxResults: 1,
+      partialResults: true,
+      popup: false,
+    });
+  }
+
   stop(): void {
     this.wantListening = false;
+    this.lastNativePartial = "";
+    if (isNativeApp()) {
+      if (this.restartTimer !== null) {
+        window.clearTimeout(this.restartTimer);
+        this.restartTimer = null;
+      }
+      void SpeechRecognition.stop().catch(() => undefined);
+      this.callbacks.onStateChange(false);
+      return;
+    }
     if (this.restartTimer !== null) {
       window.clearTimeout(this.restartTimer);
       this.restartTimer = null;

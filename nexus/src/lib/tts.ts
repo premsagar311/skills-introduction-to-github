@@ -1,27 +1,40 @@
+import { TextToSpeech } from "@capacitor-community/text-to-speech";
 import { Settings } from "../types";
+import { isNativeApp } from "./native";
 
 export function isSpeechSynthesisSupported(): boolean {
+  if (isNativeApp()) return true;
+  return typeof window !== "undefined" && "speechSynthesis" in window;
+}
+
+function isWebSynthesisAvailable(): boolean {
   return typeof window !== "undefined" && "speechSynthesis" in window;
 }
 
 export function listVoices(): SpeechSynthesisVoice[] {
-  if (!isSpeechSynthesisSupported()) return [];
+  if (!isWebSynthesisAvailable()) return [];
   return window.speechSynthesis.getVoices();
 }
 
 export function onVoicesChanged(handler: () => void): () => void {
-  if (!isSpeechSynthesisSupported()) return () => undefined;
+  if (!isWebSynthesisAvailable()) return () => undefined;
   window.speechSynthesis.addEventListener("voiceschanged", handler);
   return () => window.speechSynthesis.removeEventListener("voiceschanged", handler);
 }
 
 export function cancelSpeech(): void {
-  if (isSpeechSynthesisSupported()) window.speechSynthesis.cancel();
+  if (isNativeApp()) {
+    void TextToSpeech.stop().catch(() => undefined);
+    return;
+  }
+  if (isWebSynthesisAvailable()) window.speechSynthesis.cancel();
 }
 
 /** Speaks text and resolves when playback finishes (or immediately if unsupported). */
 export function speak(text: string, settings: Settings): Promise<void> {
-  if (!isSpeechSynthesisSupported() || !text.trim()) return Promise.resolve();
+  if (!text.trim()) return Promise.resolve();
+  if (isNativeApp()) return speakNative(text, settings);
+  if (!isWebSynthesisAvailable()) return Promise.resolve();
   return new Promise((resolve) => {
     const utterance = new SpeechSynthesisUtterance(text);
     const voices = listVoices();
@@ -39,4 +52,20 @@ export function speak(text: string, settings: Settings): Promise<void> {
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utterance);
   });
+}
+
+/** Android's WebView has no speechSynthesis; the plugin drives the system TTS engine. */
+async function speakNative(text: string, settings: Settings): Promise<void> {
+  try {
+    await TextToSpeech.stop();
+    await TextToSpeech.speak({
+      text,
+      lang: settings.language,
+      rate: settings.rate,
+      pitch: settings.pitch,
+      volume: settings.volume,
+    });
+  } catch {
+    /* no TTS engine installed, or playback interrupted */
+  }
 }

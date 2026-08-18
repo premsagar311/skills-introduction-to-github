@@ -36,8 +36,16 @@ function write(key: string, value: unknown): void {
   }
 }
 
+/** Settings saved before providers existed only ever held an OpenAI model. */
+function migrate(settings: Settings): Settings {
+  if (settings.model.startsWith("gpt") && settings.provider !== "openai") {
+    return { ...settings, provider: "openai" };
+  }
+  return settings;
+}
+
 export const store = {
-  loadSettings: (): Settings => read<Settings>(KEYS.settings, DEFAULT_SETTINGS),
+  loadSettings: (): Settings => migrate(read<Settings>(KEYS.settings, DEFAULT_SETTINGS)),
   saveSettings: (s: Settings): void => write(KEYS.settings, s),
 
   loadNotes: (): Note[] => readList<Note>(KEYS.notes),

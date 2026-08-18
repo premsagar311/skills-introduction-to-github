@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { listVoices, onVoicesChanged, speak } from "../lib/tts";
-import { Note, Reminder, Settings } from "../types";
+import { Note, PROVIDER_MODELS, Provider, Reminder, Settings } from "../types";
 
 interface SettingsPanelProps {
   settings: Settings;
@@ -11,7 +11,23 @@ interface SettingsPanelProps {
   onClearHistory: () => void;
 }
 
-const MODELS = ["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-3.5-turbo"];
+const PROVIDERS: [Provider, string][] = [
+  ["gemini", "Google Gemini (free key)"],
+  ["openai", "OpenAI (paid)"],
+];
+
+const KEY_HELP: Record<Provider, { placeholder: string; url: string; label: string }> = {
+  gemini: {
+    placeholder: "AIza…",
+    url: "https://aistudio.google.com/app/apikey",
+    label: "Google AI Studio",
+  },
+  openai: {
+    placeholder: "sk-…",
+    url: "https://platform.openai.com/api-keys",
+    label: "OpenAI dashboard",
+  },
+};
 const LANGUAGES = [
   ["en-US", "English (US)"],
   ["en-GB", "English (UK)"],
@@ -44,6 +60,12 @@ export default function SettingsPanel({
   const update = <K extends keyof Settings>(key: K, value: Settings[K]) =>
     onChange({ ...settings, [key]: value });
 
+  /** Models are provider specific, so switching provider also picks its default model. */
+  const switchProvider = (provider: Provider) =>
+    onChange({ ...settings, provider, model: PROVIDER_MODELS[provider][0] });
+
+  const keyHelp = KEY_HELP[settings.provider];
+
   const pending = reminders.filter((reminder) => !reminder.fired);
 
   return (
@@ -64,19 +86,36 @@ export default function SettingsPanel({
         <div className="sheet-body">
           <h3>AI brain</h3>
           <label>
-            OpenAI API key
+            Provider
+            <select
+              value={settings.provider}
+              onChange={(event) => switchProvider(event.target.value as Provider)}
+            >
+              {PROVIDERS.map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            API key
             <input
               type="password"
               value={settings.apiKey}
               onChange={(event) => update("apiKey", event.target.value)}
-              placeholder="sk-…"
+              placeholder={keyHelp.placeholder}
               autoComplete="off"
               spellCheck={false}
             />
           </label>
           <p className="hint">
-            Stored only on this device. Leave empty to use offline skills, or point Nexus at your own
-            proxy below to keep the key off the device entirely.
+            Get a key from{" "}
+            <a href={keyHelp.url} target="_blank" rel="noreferrer">
+              {keyHelp.label}
+            </a>
+            . Stored only on this device. Leave empty to use offline skills, or point Nexus at your
+            own proxy below to keep the key off the device entirely.
           </p>
           <label>
             Backend proxy URL (optional)
@@ -91,7 +130,7 @@ export default function SettingsPanel({
           <label>
             Model
             <select value={settings.model} onChange={(event) => update("model", event.target.value)}>
-              {MODELS.map((model) => (
+              {PROVIDER_MODELS[settings.provider].map((model) => (
                 <option key={model} value={model}>
                   {model}
                 </option>

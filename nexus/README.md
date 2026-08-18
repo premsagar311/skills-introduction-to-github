@@ -1,8 +1,8 @@
 # Nexus — AI voice assistant
 
-Nexus listens through your microphone, thinks, and talks back. It is a single
-codebase that installs as a real app on **Windows** (Edge/Chrome) and **Android**
-(Chrome) as a PWA — no app store, no separate builds.
+Nexus listens through your microphone, thinks, and talks back. One codebase ships
+as a **native Android APK** and as an installable **PWA** for Windows (Edge/Chrome)
+and any Chromium browser — no app store.
 
 ![Nexus icon](public/icons/icon-192.png)
 
@@ -26,6 +26,25 @@ codebase that installs as a real app on **Windows** (Edge/Chrome) and **Android*
 Nexus can answer open questions. Replies are kept short so they sound natural
 when spoken.
 
+## Install on Android (easiest)
+
+1. Download `app-debug.apk` from the **Build Nexus APK** workflow run
+   (*Actions → Build Nexus APK → Artifacts → nexus-apk*).
+2. Open it on the phone and allow *install from this source* when prompted.
+3. Launch **Nexus**, tap the orb, allow the microphone.
+
+Offline skills work immediately with no key and no server. In the APK, speech
+input uses Android's native recogniser and replies use the system text-to-speech
+engine, because Android's WebView has no Web Speech API.
+
+Build it yourself (needs the Android SDK and JDK 17):
+
+```bash
+cd nexus
+npm install
+npm run android:apk   # android/app/build/outputs/apk/debug/app-debug.apk
+```
+
 ## Run it
 
 ```bash
@@ -42,24 +61,32 @@ desktop Safari can still be used by typing in the composer.
 
 ## Connect the AI brain
 
-Two options — pick one:
+Nexus supports two providers, both through the same OpenAI-style chat protocol:
 
-1. **Key on the device (fastest):** open **Settings → OpenAI API key**, paste an
-   `sk-...` key. It is stored in `localStorage` on that device only and sent
-   straight to `api.openai.com`.
+| Provider | Key looks like | Where to get it |
+| --- | --- | --- |
+| **Google Gemini** (default, free tier, no card) | `AIza…` | https://aistudio.google.com/app/apikey |
+| **OpenAI** (paid) | `sk-…` | https://platform.openai.com/api-keys |
+
+Two ways to supply it — pick one:
+
+1. **Key on the device (fastest):** **Settings → Provider**, then paste the key.
+   It is stored in `localStorage` on that device only and sent straight to the
+   provider.
 2. **Key on a server (recommended for shared devices):** run the tiny proxy in
    `server/`, then set **Settings → Backend proxy URL** and leave the key blank.
 
 ```bash
 cd nexus/server
 pip install -r requirements.txt
-OPENAI_API_KEY=sk-... uvicorn main:app --host 0.0.0.0 --port 8000
+GEMINI_API_KEY=AIza... uvicorn main:app --host 0.0.0.0 --port 8000
+# or OPENAI_API_KEY=sk-...
 ```
 
 `npm run dev` already proxies `/api` to `http://127.0.0.1:8000`, so a local
 backend URL of `http://localhost:5173` works during development.
 
-## Install as an app
+## Install as an app (Windows / browser)
 
 Build the static bundle and serve it over HTTPS (or `localhost`):
 
@@ -90,12 +117,14 @@ both phone and PC.
 
 ```
 nexus/
-  src/lib/speech.ts     microphone → text (Web Speech API, auto-restarting)
-  src/lib/tts.ts        text → speech (voice, rate, pitch)
+  src/lib/speech.ts     microphone → text (Web Speech API or native recogniser)
+  src/lib/tts.ts        text → speech (browser or native TTS)
   src/lib/skills.ts     offline intents + local arithmetic parser
-  src/lib/brain.ts      LLM call (direct OpenAI or backend proxy)
+  src/lib/brain.ts      LLM call (Gemini or OpenAI, direct or via proxy)
+  src/lib/native.ts     detects the Android shell
   src/lib/storage.ts    settings, notes, reminders, history in localStorage
   src/App.tsx           voice loop and state
+  android/              Capacitor Android project (native speech + TTS)
   server/main.py        optional FastAPI key-holding proxy
 ```
 
