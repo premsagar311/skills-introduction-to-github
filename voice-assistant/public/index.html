@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Realtime Voice Assistant</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Realtime Voice Assistant</h1>
+      <p class="subtitle">Speech-to-speech via the OpenAI Realtime API</p>
+
+      <div class="controls">
+        <button id="connect" type="button">Start talking</button>
+        <button id="disconnect" type="button" disabled>Stop</button>
+        <label class="mute">
+          <input id="mute" type="checkbox" />
+          Mute microphone
+        </label>
+      </div>
+
+      <p id="status" class="status" data-state="idle">Idle</p>
+
+      <form id="text-form" class="text-form">
+        <input
+          id="text-input"
+          type="text"
+          placeholder="…or type a message"
+          autocomplete="off"
+          disabled
+        />
+        <button id="send" type="submit" disabled>Send</button>
+      </form>
+
+      <section class="transcript" aria-live="polite">
+        <h2>Transcript</h2>
+        <ul id="transcript"></ul>
+      </section>
+
+      <audio id="assistant-audio" autoplay></audio>
+    </main>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
