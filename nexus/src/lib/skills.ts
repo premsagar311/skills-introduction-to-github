@@ -48,6 +48,40 @@ const JOKES = [
   "Why did the developer go broke? Because he used up all his cache.",
 ];
 
+/** Linear conversions expressed as a factor from the left unit to the right unit. */
+const LENGTH_AND_MASS: Record<string, { to: string; factor: number }> = {
+  km: { to: "miles", factor: 0.621371 },
+  kilometre: { to: "miles", factor: 0.621371 },
+  kilometres: { to: "miles", factor: 0.621371 },
+  kilometer: { to: "miles", factor: 0.621371 },
+  kilometers: { to: "miles", factor: 0.621371 },
+  mile: { to: "kilometres", factor: 1.609344 },
+  miles: { to: "kilometres", factor: 1.609344 },
+  kg: { to: "pounds", factor: 2.204623 },
+  kilo: { to: "pounds", factor: 2.204623 },
+  kilos: { to: "pounds", factor: 2.204623 },
+  kilogram: { to: "pounds", factor: 2.204623 },
+  kilograms: { to: "pounds", factor: 2.204623 },
+  pound: { to: "kilograms", factor: 0.453592 },
+  pounds: { to: "kilograms", factor: 0.453592 },
+  lb: { to: "kilograms", factor: 0.453592 },
+  lbs: { to: "kilograms", factor: 0.453592 },
+  cm: { to: "inches", factor: 0.393701 },
+  centimetres: { to: "inches", factor: 0.393701 },
+  centimeters: { to: "inches", factor: 0.393701 },
+  inch: { to: "centimetres", factor: 2.54 },
+  inches: { to: "centimetres", factor: 2.54 },
+};
+
+const HOLIDAYS: Record<string, [number, number]> = {
+  christmas: [11, 25],
+  "christmas day": [11, 25],
+  "new year": [0, 1],
+  "new years": [0, 1],
+  "new year's day": [0, 1],
+  halloween: [9, 31],
+};
+
 const UNIT_MS: Record<string, number> = {
   second: 1000,
   seconds: 1000,
@@ -188,7 +222,7 @@ const skills: Skill[] = [
   },
   (text) => {
     if (/(what can you do|help me|^help$|your skills|commands)/.test(text)) {
-      return "Try: what time is it, what is twelve times nine, take a note buy milk, read my notes, remind me to stretch in ten minutes, open YouTube, search for pasta recipes, flip a coin, or just ask me anything.";
+      return "Try: what time is it, what is twelve times nine, twenty kilometres in miles, thirty degrees celsius in fahrenheit, how many days until Christmas, spell rhythm, take a note buy milk, read my notes, remind me to stretch in ten minutes, open YouTube, search for pasta recipes, flip a coin, or just ask me anything.";
     }
     return null;
   },
@@ -345,6 +379,73 @@ const skills: Skill[] = [
     return `Playing ${query} on YouTube.`;
   },
 
+  // Conversions
+  (text) => {
+    const temperature = text.match(
+      /(-?\d+(?:\.\d+)?)\s*(?:degrees\s*)?(celsius|centigrade|c|fahrenheit|f)\b.*?(?:in|to|into)\s*(?:degrees\s*)?(celsius|centigrade|c|fahrenheit|f)\b/,
+    );
+    if (temperature) {
+      const value = Number(temperature[1]);
+      const from = temperature[2].startsWith("f") ? "f" : "c";
+      const to = temperature[3].startsWith("f") ? "f" : "c";
+      if (from === to) return `That is still ${round(value)} degrees.`;
+      const converted = from === "c" ? (value * 9) / 5 + 32 : ((value - 32) * 5) / 9;
+      return `That is ${round(Math.round(converted * 10) / 10)} degrees ${to === "f" ? "Fahrenheit" : "Celsius"}.`;
+    }
+
+    const unit = text.match(/(?:convert\s+)?(\d+(?:\.\d+)?)\s*([a-z]+)\b(?:\s+(?:in|to|into)\s+[a-z]+)?/);
+    if (!unit || !/(convert|how many|in |to |into )/.test(text)) return null;
+    const conversion = LENGTH_AND_MASS[unit[2]];
+    if (!conversion) return null;
+    return `That is ${round(Math.round(Number(unit[1]) * conversion.factor * 100) / 100)} ${conversion.to}.`;
+  },
+
+  // Countdowns
+  (text) => {
+    const match = text.match(/how many days (?:until|till|to)\s+(.+)/);
+    if (!match) return null;
+    const target = match[1].replace(/\.$/, "").trim();
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    let due: Date | null = null;
+
+    const holiday = HOLIDAYS[target];
+    if (holiday) {
+      due = new Date(now.getFullYear(), holiday[0], holiday[1]);
+      if (due < today) due = new Date(now.getFullYear() + 1, holiday[0], holiday[1]);
+    } else {
+      const parsed = Date.parse(target);
+      if (!Number.isNaN(parsed)) due = new Date(parsed);
+    }
+    if (!due) return null;
+
+    const days = Math.round((due.getTime() - today.getTime()) / 86_400_000);
+    if (days === 0) return `${target} is today.`;
+    if (days < 0) return `${target} was ${Math.abs(days)} day${Math.abs(days) === 1 ? "" : "s"} ago.`;
+    return `${days} day${days === 1 ? "" : "s"} until ${target}.`;
+  },
+
+  // Spelling
+  (text) => {
+    const match = text.match(/^(?:how do you spell|spell)\s+(?:the word\s+)?([a-z]+)/);
+    if (!match) return null;
+    return `${match[1]} is spelled ${match[1].toUpperCase().split("").join(", ")}.`;
+  },
+
+  // Small talk
+  (text) => {
+    if (/(how are you|how(?:'s| is) it going|what(?:'s| is) up)/.test(text)) {
+      return "Running smoothly, thank you. What would you like to do?";
+    }
+    if (/(good night|goodnight|bye|see you|goodbye)/.test(text)) {
+      return "Good night. Tap the orb whenever you need me.";
+    }
+    if (/(are you (?:a )?(?:real|human|robot|ai))/.test(text)) {
+      return "I am software, but I am a good listener.";
+    }
+    return null;
+  },
+
   // Fun and dice
   (text) => {
     if (!/(flip|toss)\s+(?:a\s+)?coin/.test(text)) return null;
@@ -386,7 +487,17 @@ export function runSkills(utterance: string, ctx: SkillContext): SkillResult | n
   return null;
 }
 
+const OFFLINE_SUGGESTIONS = [
+  "the time or date",
+  "maths, like twelve times nine",
+  "a note, or read your notes back",
+  "a timer or reminder",
+  "a conversion, like twenty kilometres in miles",
+  "opening a site or searching the web",
+];
+
 /** Reply used when no skill matched and no LLM is configured. */
 export function fallbackReply(utterance: string): string {
-  return `I heard "${utterance}", but I can only answer that with an AI brain connected. Open settings and add an OpenAI key, or ask me the time, some maths, a note or to open a site.`;
+  const suggestion = OFFLINE_SUGGESTIONS[Math.floor(Math.random() * OFFLINE_SUGGESTIONS.length)];
+  return `I did not catch a command in "${utterance}". Offline I can handle ${suggestion} — say "what can you do" for the full list. Add an AI key in settings to let me answer anything.`;
 }

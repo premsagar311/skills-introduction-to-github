@@ -14,6 +14,8 @@ codebase that installs as a real app on **Windows** (Edge/Chrome) and **Android*
 | --- | --- |
 | "what time is it" / "what's the date" | tells the time or date |
 | "what is 12 times 9", "20 percent of 250" | maths, evaluated locally (no `eval`) |
+| "20 kilometres in miles", "30 degrees celsius in fahrenheit" | distance/mass/temperature conversions |
+| "how many days until christmas", "spell rhythm" | countdowns and spelling |
 | "take a note buy milk", "read my notes" | notes saved on the device |
 | "remind me to stretch in 10 minutes", "set a timer for 2 minutes" | spoken reminders |
 | "open youtube", "search for pasta recipes", "play lofi" | opens the site |
