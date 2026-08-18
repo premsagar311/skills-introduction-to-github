@@ -252,6 +252,7 @@ button.ghost:hover {
   font-size: 15px;
   line-height: 1.45;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .bubble.user {

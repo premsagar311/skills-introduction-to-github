@@ -45,6 +45,11 @@ class ChatResponse(BaseModel):
     reply: str
 
 
+def _redact(text: str, api_key: str) -> str:
+    """Upstream errors quote the offending key back at us; never pass it to a client."""
+    return text.replace(api_key, "***")
+
+
 @app.get("/api/health")
 async def health() -> dict[str, object]:
     return {"ok": True, "has_key": bool(os.environ.get("OPENAI_API_KEY"))}
@@ -74,7 +79,10 @@ async def chat(request: ChatRequest) -> ChatResponse:
         raise HTTPException(status_code=502, detail=f"Upstream request failed: {exc}") from exc
 
     if response.status_code >= 400:
-        raise HTTPException(status_code=response.status_code, detail=response.text[:400])
+        raise HTTPException(
+            status_code=response.status_code,
+            detail=_redact(response.text, api_key)[:400],
+        )
 
     data = response.json()
     try:

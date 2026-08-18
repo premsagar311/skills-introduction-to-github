@@ -52,13 +52,18 @@ export async function ask(
 
   if (!response.ok) {
     const detail = await response.text();
-    throw new Error(`${response.status} ${response.statusText}: ${detail.slice(0, 200)}`);
+    throw new Error(`${response.status} ${response.statusText}: ${redact(detail).slice(0, 200)}`);
   }
 
   const data: unknown = await response.json();
   const reply = readReply(data);
   if (!reply) throw new Error("The AI returned an empty reply.");
   return reply;
+}
+
+/** Upstream errors quote the offending credential back at us; never surface it. */
+function redact(text: string): string {
+  return text.replace(/sk-[A-Za-z0-9_-]{8,}/g, "sk-***").replace(/Bearer\s+\S+/g, "Bearer ***");
 }
 
 function readReply(data: unknown): string {
